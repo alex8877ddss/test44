@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight } from 'lucide-react';
+import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
 import { installationService } from '../services/installation';
 import { useAuth } from '../hooks/useAuth';
 
 const InstallPage: React.FC = () => {
   const { signUp } = useAuth();
-  const [installationStep, setInstallationStep] = useState<'checking' | 'installing' | 'admin-setup' | 'completed'>('checking');
+  const [installationStep, setInstallationStep] = useState<'checking' | 'migration-needed' | 'installing' | 'admin-setup' | 'completed'>('checking');
   const [isInstalled, setIsInstalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adminData, setAdminData] = useState({
@@ -33,7 +33,8 @@ const InstallPage: React.FC = () => {
         await performInstallation();
       }
     } catch (err) {
-      setError('Failed to check installation status');
+      setError('Database tables not found. Please run the migration first.');
+      setInstallationStep('migration-needed');
       console.error('Installation check error:', err);
     }
   };
@@ -46,10 +47,12 @@ const InstallPage: React.FC = () => {
       if (success) {
         setInstallationStep('admin-setup');
       } else {
-        setError('Installation failed. Please try again.');
+        setError('Database tables not found. Please run the migration in Supabase SQL Editor.');
+        setInstallationStep('migration-needed');
       }
     } catch (err) {
-      setError('Installation failed. Please check your database connection.');
+      setError('Installation failed. Please run the database migration first.');
+      setInstallationStep('migration-needed');
       console.error('Installation error:', err);
     }
   };
@@ -101,27 +104,81 @@ const InstallPage: React.FC = () => {
           </div>
         );
 
+      case 'migration-needed':
+        return (
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-orange-500/25">
+              <Database className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-4">Database Setup Required</h2>
+            <p className="text-gray-400 mb-6">
+              The database tables need to be created before the application can run.
+            </p>
+            
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-semibold text-blue-400 mb-4">Setup Instructions:</h3>
+              <ol className="text-left text-gray-300 space-y-3">
+                <li className="flex items-start gap-3">
+                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">1</span>
+                  <span>Go to your Supabase project dashboard</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">2</span>
+                  <span>Navigate to "SQL Editor"</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">3</span>
+                  <span>Copy and run the migration SQL from <code className="bg-gray-700 px-2 py-1 rounded text-sm">supabase/migrations/20250702094237_shiny_oasis.sql</code></span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">4</span>
+                  <span>Refresh this page after running the migration</span>
+                </li>
+              </ol>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
+              >
+                <Database className="w-5 h-5" />
+                Check Again
+              </button>
+              <a
+                href="https://supabase.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-gray-700/50 text-gray-300 py-3 px-6 rounded-xl font-semibold hover:bg-gray-600/50 transition-colors border border-gray-600 flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-5 h-5" />
+                Open Supabase
+              </a>
+            </div>
+          </div>
+        );
+
       case 'installing':
         return (
           <div className="text-center">
             <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/25">
               <Database className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Installing Database</h2>
-            <p className="text-gray-400 mb-6">Setting up database tables and initial configuration...</p>
+            <h2 className="text-2xl font-bold text-white mb-4">Verifying Database</h2>
+            <p className="text-gray-400 mb-6">Checking database tables and configuration...</p>
             
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Creating database tables</span>
+                <span className="text-gray-300">Checking database tables</span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Setting up security policies</span>
+                <span className="text-gray-300">Verifying security policies</span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Inserting default data</span>
+                <span className="text-gray-300">Loading default data</span>
               </div>
             </div>
           </div>

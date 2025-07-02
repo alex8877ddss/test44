@@ -11,9 +11,14 @@ export class EthplorerService {
   }
 
   private async loadApiKey() {
-    const savedKey = await databaseService.getSetting('ethplorer_api_key');
-    if (savedKey) {
-      this.apiKey = savedKey;
+    try {
+      const savedKey = await databaseService.getSetting('ethplorer_api_key');
+      if (savedKey) {
+        this.apiKey = savedKey;
+      }
+    } catch (error) {
+      console.error('Error loading API key, using default:', error);
+      this.apiKey = 'freekey';
     }
   }
 
@@ -54,7 +59,11 @@ export class EthplorerService {
 
   async setApiKey(apiKey: string) {
     this.apiKey = apiKey;
-    await databaseService.setSetting('ethplorer_api_key', apiKey);
+    try {
+      await databaseService.setSetting('ethplorer_api_key', apiKey);
+    } catch (error) {
+      console.error('Error saving API key:', error);
+    }
   }
 }
 

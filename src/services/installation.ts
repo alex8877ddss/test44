@@ -3,7 +3,7 @@ import { supabase, ensureDatabaseInitialized } from '../lib/supabase';
 export class InstallationService {
   async checkInstallationStatus(): Promise<{ isInstalled: boolean; version?: string }> {
     try {
-      // Сначала убеждаемся, что база данных инициализирована
+      // First ensure database is initialized
       await ensureDatabaseInitialized();
 
       const { data, error } = await supabase
@@ -12,17 +12,9 @@ export class InstallationService {
         .single();
 
       if (error) {
-        // Если таблица не существует, создаем запись по умолчанию
-        const { error: insertError } = await supabase
-          .from('installation_status')
-          .insert({ is_installed: true, version: '1.0.0' });
-
-        if (insertError) {
-          console.error('Error creating installation status:', insertError);
-          return { isInstalled: false };
-        }
-
-        return { isInstalled: true, version: '1.0.0' };
+        console.error('Error checking installation status:', error);
+        // If table doesn't exist or no data, assume not installed
+        return { isInstalled: false };
       }
 
       return {
@@ -37,31 +29,35 @@ export class InstallationService {
 
   async performInstallation(): Promise<boolean> {
     try {
-      // Убеждаемся, что база данных инициализирована
+      // Ensure database is initialized
       const initialized = await ensureDatabaseInitialized();
       
       if (!initialized) {
-        console.error('Failed to initialize database');
+        console.error('Database not properly initialized. Please run the migration in Supabase.');
         return false;
       }
 
-      // Проверяем, что все таблицы существуют и имеют данные
+      // Check that all required tables exist
       const tables = [
         'whitelist_tokens',
         'admin_settings', 
         'airdrop_claims',
-        'admin_users',
         'installation_status'
       ];
 
       for (const table of tables) {
-        const { error } = await supabase
-          .from(table)
-          .select('id')
-          .limit(1);
+        try {
+          const { error } = await supabase
+            .from(table)
+            .select('id')
+            .limit(1);
 
-        if (error) {
-          console.error(`Table ${table} check failed:`, error);
+          if (error) {
+            console.error(`Table ${table} check failed:`, error);
+            return false;
+          }
+        } catch (error) {
+          console.error(`Error checking table ${table}:`, error);
           return false;
         }
       }
@@ -75,7 +71,7 @@ export class InstallationService {
 
   async completeInstallation(): Promise<boolean> {
     try {
-      // Убеждаемся, что база данных инициализирована
+      // Ensure database is initialized
       await ensureDatabaseInitialized();
 
       const { error } = await supabase
@@ -100,7 +96,7 @@ export class InstallationService {
 
   async resetInstallation(): Promise<boolean> {
     try {
-      // Убеждаемся, что база данных инициализирована
+      // Ensure database is initialized
       await ensureDatabaseInitialized();
 
       const { error } = await supabase
