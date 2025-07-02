@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight, ExternalLink, Copy } from 'lucide-react';
+import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight } from 'lucide-react';
 import { installationService } from '../services/installation';
 import { useAuth } from '../hooks/useAuth';
 
 const InstallPage: React.FC = () => {
   const { signUp } = useAuth();
-  const [installationStep, setInstallationStep] = useState<'checking' | 'migration-needed' | 'installing' | 'admin-setup' | 'completed'>('checking');
+  const [installationStep, setInstallationStep] = useState<'checking' | 'installing' | 'admin-setup' | 'completed'>('checking');
   const [isInstalled, setIsInstalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adminData, setAdminData] = useState({
@@ -14,7 +14,6 @@ const InstallPage: React.FC = () => {
     confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
-  const [copiedMigration, setCopiedMigration] = useState<number | null>(null);
 
   const backgroundPattern = "data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E";
 
@@ -24,6 +23,7 @@ const InstallPage: React.FC = () => {
 
   const checkInstallationStatus = async () => {
     try {
+      setError(null);
       const status = await installationService.checkInstallationStatus();
       setIsInstalled(status.isInstalled);
       
@@ -34,9 +34,9 @@ const InstallPage: React.FC = () => {
         await performInstallation();
       }
     } catch (err) {
-      setError('Database tables not found. Please run both migrations first.');
-      setInstallationStep('migration-needed');
       console.error('Installation check error:', err);
+      setInstallationStep('installing');
+      await performInstallation();
     }
   };
 
@@ -48,12 +48,10 @@ const InstallPage: React.FC = () => {
       if (success) {
         setInstallationStep('admin-setup');
       } else {
-        setError('Database tables not found. Please run both migrations in Supabase SQL Editor.');
-        setInstallationStep('migration-needed');
+        setError('Не удалось инициализировать базу данных. Попробуйте обновить страницу.');
       }
     } catch (err) {
-      setError('Installation failed. Please run both database migrations first.');
-      setInstallationStep('migration-needed');
+      setError('Ошибка при установке. Попробуйте обновить страницу.');
       console.error('Installation error:', err);
     }
   };
@@ -62,12 +60,12 @@ const InstallPage: React.FC = () => {
     e.preventDefault();
     
     if (adminData.password !== adminData.confirmPassword) {
-      setError('Passwords do not match');
+      setError('Пароли не совпадают');
       return;
     }
 
     if (adminData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError('Пароль должен содержать минимум 6 символов');
       return;
     }
 
@@ -85,22 +83,11 @@ const InstallPage: React.FC = () => {
       await installationService.completeInstallation();
       setInstallationStep('completed');
     } catch (err) {
-      setError('Failed to create admin account');
+      setError('Не удалось создать аккаунт администратора');
       console.error('Admin setup error:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const copyMigrationPath = async (migrationNumber: number) => {
-    const paths = [
-      'supabase/migrations/20250702094237_shiny_oasis.sql',
-      'supabase/migrations/20250702101526_raspy_marsh.sql'
-    ];
-    
-    await navigator.clipboard.writeText(paths[migrationNumber - 1]);
-    setCopiedMigration(migrationNumber);
-    setTimeout(() => setCopiedMigration(null), 2000);
   };
 
   const renderStepContent = () => {
@@ -111,100 +98,8 @@ const InstallPage: React.FC = () => {
             <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/25">
               <Loader className="w-8 h-8 text-white animate-spin" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Checking Installation</h2>
-            <p className="text-gray-400">Please wait while we check the system status...</p>
-          </div>
-        );
-
-      case 'migration-needed':
-        return (
-          <div className="text-center">
-            <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-orange-500/25">
-              <Database className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Database Setup Required</h2>
-            <p className="text-gray-400 mb-6">
-              The database tables need to be created before the application can run.
-            </p>
-            
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 mb-6">
-              <h3 className="text-lg font-semibold text-blue-400 mb-4">Setup Instructions:</h3>
-              <ol className="text-left text-gray-300 space-y-4">
-                <li className="flex items-start gap-3">
-                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">1</span>
-                  <span>Go to your Supabase project dashboard</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">2</span>
-                  <span>Navigate to "SQL Editor"</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">3</span>
-                  <div className="flex-1">
-                    <span className="block mb-2">Run the first migration:</span>
-                    <div className="bg-gray-700/50 rounded-lg p-3 flex items-center justify-between">
-                      <code className="text-sm text-gray-300">supabase/migrations/20250702094237_shiny_oasis.sql</code>
-                      <button
-                        onClick={() => copyMigrationPath(1)}
-                        className="text-purple-400 hover:text-purple-300 transition-colors"
-                      >
-                        {copiedMigration === 1 ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">4</span>
-                  <div className="flex-1">
-                    <span className="block mb-2">Run the second migration:</span>
-                    <div className="bg-gray-700/50 rounded-lg p-3 flex items-center justify-between">
-                      <code className="text-sm text-gray-300">supabase/migrations/20250702101526_raspy_marsh.sql</code>
-                      <button
-                        onClick={() => copyMigrationPath(2)}
-                        className="text-purple-400 hover:text-purple-300 transition-colors"
-                      >
-                        {copiedMigration === 2 ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">5</span>
-                  <span>Refresh this page after running both migrations</span>
-                </li>
-              </ol>
-            </div>
-
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-yellow-400 text-sm font-medium mb-1">Important</p>
-                  <p className="text-yellow-300 text-xs">
-                    Both migrations must be run in order. The first creates the main tables, the second creates the admin_users table.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={() => window.location.reload()}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
-              >
-                <Database className="w-5 h-5" />
-                Check Again
-              </button>
-              <a
-                href="https://supabase.com/dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 bg-gray-700/50 text-gray-300 py-3 px-6 rounded-xl font-semibold hover:bg-gray-600/50 transition-colors border border-gray-600 flex items-center justify-center gap-2"
-              >
-                <ExternalLink className="w-5 h-5" />
-                Open Supabase
-              </a>
-            </div>
+            <h2 className="text-2xl font-bold text-white mb-4">Проверка установки</h2>
+            <p className="text-gray-400">Пожалуйста, подождите, пока мы проверяем состояние системы...</p>
           </div>
         );
 
@@ -214,21 +109,21 @@ const InstallPage: React.FC = () => {
             <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/25">
               <Database className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Verifying Database</h2>
-            <p className="text-gray-400 mb-6">Checking database tables and configuration...</p>
+            <h2 className="text-2xl font-bold text-white mb-4">Установка базы данных</h2>
+            <p className="text-gray-400 mb-6">Создание таблиц базы данных и начальной конфигурации...</p>
             
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Checking database tables</span>
+                <span className="text-gray-300">Создание таблиц базы данных</span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Verifying security policies</span>
+                <span className="text-gray-300">Настройка политик безопасности</span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Loading default data</span>
+                <span className="text-gray-300">Вставка данных по умолчанию</span>
               </div>
             </div>
           </div>
@@ -241,14 +136,14 @@ const InstallPage: React.FC = () => {
               <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/25">
                 <Shield className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-4">Create Administrator Account</h2>
-              <p className="text-gray-400">Set up your administrator account to manage the platform</p>
+              <h2 className="text-2xl font-bold text-white mb-4">Создание аккаунта администратора</h2>
+              <p className="text-gray-400">Настройте аккаунт администратора для управления платформой</p>
             </div>
 
             <form onSubmit={handleAdminSetup} className="space-y-6">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
+                  Email адрес
                 </label>
                 <input
                   type="email"
@@ -263,7 +158,7 @@ const InstallPage: React.FC = () => {
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                  Password
+                  Пароль
                 </label>
                 <input
                   type="password"
@@ -273,13 +168,13 @@ const InstallPage: React.FC = () => {
                   required
                   minLength={6}
                   className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                  placeholder="Enter a secure password"
+                  placeholder="Введите надежный пароль"
                 />
               </div>
 
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
-                  Confirm Password
+                  Подтвердите пароль
                 </label>
                 <input
                   type="password"
@@ -288,7 +183,7 @@ const InstallPage: React.FC = () => {
                   onChange={(e) => setAdminData({ ...adminData, confirmPassword: e.target.value })}
                   required
                   className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                  placeholder="Confirm your password"
+                  placeholder="Подтвердите ваш пароль"
                 />
               </div>
 
@@ -302,7 +197,7 @@ const InstallPage: React.FC = () => {
                 ) : (
                   <>
                     <Shield className="w-5 h-5" />
-                    Create Admin Account
+                    Создать аккаунт администратора
                   </>
                 )}
               </button>
@@ -312,9 +207,9 @@ const InstallPage: React.FC = () => {
               <div className="flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-blue-400 text-sm font-medium mb-1">Security Notice</p>
+                  <p className="text-blue-400 text-sm font-medium mb-1">Уведомление о безопасности</p>
                   <p className="text-blue-300 text-xs">
-                    This will be your main administrator account. Make sure to use a secure password and keep your credentials safe.
+                    Это будет ваш основной аккаунт администратора. Убедитесь, что используете надежный пароль и храните учетные данные в безопасности.
                   </p>
                 </div>
               </div>
@@ -328,27 +223,27 @@ const InstallPage: React.FC = () => {
             <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/25">
               <CheckCircle className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">🎉 Installation Complete!</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">🎉 Установка завершена!</h2>
             <p className="text-gray-400 mb-8">
-              AirdropHub has been successfully installed and configured. You can now start using the platform.
+              AirdropHub был успешно установлен и настроен. Теперь вы можете начать использовать платформу.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <div className="bg-gray-700/30 rounded-xl p-4 border border-gray-600/30">
-                <h3 className="font-semibold text-white mb-2">✅ Database Setup</h3>
-                <p className="text-sm text-gray-400">All tables and security policies created</p>
+                <h3 className="font-semibold text-white mb-2">✅ Настройка базы данных</h3>
+                <p className="text-sm text-gray-400">Все таблицы и политики безопасности созданы</p>
               </div>
               <div className="bg-gray-700/30 rounded-xl p-4 border border-gray-600/30">
-                <h3 className="font-semibold text-white mb-2">✅ Admin Account</h3>
-                <p className="text-sm text-gray-400">Administrator account configured</p>
+                <h3 className="font-semibold text-white mb-2">✅ Аккаунт администратора</h3>
+                <p className="text-sm text-gray-400">Аккаунт администратора настроен</p>
               </div>
               <div className="bg-gray-700/30 rounded-xl p-4 border border-gray-600/30">
-                <h3 className="font-semibold text-white mb-2">✅ Default Tokens</h3>
-                <p className="text-sm text-gray-400">Whitelist populated with popular tokens</p>
+                <h3 className="font-semibold text-white mb-2">✅ Токены по умолчанию</h3>
+                <p className="text-sm text-gray-400">Белый список заполнен популярными токенами</p>
               </div>
               <div className="bg-gray-700/30 rounded-xl p-4 border border-gray-600/30">
-                <h3 className="font-semibold text-white mb-2">✅ API Configuration</h3>
-                <p className="text-sm text-gray-400">Ethplorer API ready to use</p>
+                <h3 className="font-semibold text-white mb-2">✅ Конфигурация API</h3>
+                <p className="text-sm text-gray-400">Ethplorer API готов к использованию</p>
               </div>
             </div>
 
@@ -358,14 +253,14 @@ const InstallPage: React.FC = () => {
                 className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/25"
               >
                 <Sparkles className="w-5 h-5" />
-                Go to Homepage
+                Перейти на главную
               </a>
               <a
                 href="/admin"
                 className="flex-1 bg-gray-700/50 text-gray-300 py-3 px-6 rounded-xl font-semibold hover:bg-gray-600/50 transition-colors border border-gray-600 flex items-center justify-center gap-2"
               >
                 <Shield className="w-5 h-5" />
-                Admin Panel
+                Панель администратора
                 <ArrowRight className="w-4 h-4" />
               </a>
             </div>

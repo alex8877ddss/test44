@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { databaseInitService } from '../services/database-init';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -15,18 +14,32 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Автоматическая инициализация базы данных при подключении
 let initializationPromise: Promise<boolean> | null = null;
+let isInitialized = false;
 
 export const ensureDatabaseInitialized = async (): Promise<boolean> => {
-  if (!initializationPromise) {
-    initializationPromise = databaseInitService.checkAndInitialize();
+  if (isInitialized) {
+    return true;
   }
+
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      try {
+        // Динамический импорт для избежания циклических зависимостей
+        const { databaseInitService } = await import('../services/database-init');
+        const result = await databaseInitService.checkAndInitialize();
+        if (result) {
+          isInitialized = true;
+        }
+        return result;
+      } catch (error) {
+        console.error('Ошибка инициализации базы данных:', error);
+        return false;
+      }
+    })();
+  }
+  
   return initializationPromise;
 };
-
-// Инициализируем базу данных при загрузке модуля
-ensureDatabaseInitialized().catch(error => {
-  console.error('Ошибка автоматической инициализации базы данных:', error);
-});
 
 export type Database = {
   public: {
