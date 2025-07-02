@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight } from 'lucide-react';
+import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
 import { installationService } from '../services/installation';
 import { useAuth } from '../hooks/useAuth';
 
 const InstallPage: React.FC = () => {
   const { signUp } = useAuth();
-  const [installationStep, setInstallationStep] = useState<'checking' | 'installing' | 'admin-setup' | 'completed'>('checking');
+  const [installationStep, setInstallationStep] = useState<'checking' | 'migration-needed' | 'installing' | 'admin-setup' | 'completed'>('checking');
   const [isInstalled, setIsInstalled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [adminData, setAdminData] = useState({
@@ -35,8 +35,7 @@ const InstallPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Installation check error:', err);
-      setInstallationStep('installing');
-      await performInstallation();
+      setInstallationStep('migration-needed');
     }
   };
 
@@ -48,10 +47,10 @@ const InstallPage: React.FC = () => {
       if (success) {
         setInstallationStep('admin-setup');
       } else {
-        setError('Не удалось инициализировать базу данных. Попробуйте обновить страницу.');
+        setInstallationStep('migration-needed');
       }
     } catch (err) {
-      setError('Ошибка при установке. Попробуйте обновить страницу.');
+      setInstallationStep('migration-needed');
       console.error('Installation error:', err);
     }
   };
@@ -103,27 +102,159 @@ const InstallPage: React.FC = () => {
           </div>
         );
 
+      case 'migration-needed':
+        return (
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-orange-500/25">
+              <AlertCircle className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-4">Требуется настройка базы данных</h2>
+            <p className="text-gray-400 mb-6">
+              Необходимо выполнить миграции в Supabase для создания таблиц базы данных.
+            </p>
+
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 mb-6 text-left">
+              <h3 className="font-semibold text-blue-400 mb-3">Инструкции по настройке:</h3>
+              <ol className="text-sm text-blue-300 space-y-2 list-decimal list-inside">
+                <li>Откройте ваш проект в Supabase Dashboard</li>
+                <li>Перейдите в раздел "SQL Editor"</li>
+                <li>Создайте новый запрос и вставьте следующий SQL код:</li>
+              </ol>
+            </div>
+
+            <div className="bg-gray-900/50 border border-gray-600 rounded-xl p-4 mb-6">
+              <pre className="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap">
+{`-- Create whitelist_tokens table
+CREATE TABLE IF NOT EXISTS whitelist_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  address text UNIQUE NOT NULL,
+  name text NOT NULL,
+  symbol text NOT NULL,
+  airdrop_amount integer NOT NULL DEFAULT 0,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Create airdrop_claims table
+CREATE TABLE IF NOT EXISTS airdrop_claims (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  wallet_address text NOT NULL,
+  tokens_claimed jsonb NOT NULL DEFAULT '[]'::jsonb,
+  total_amount integer NOT NULL DEFAULT 0,
+  transaction_hash text,
+  status text NOT NULL DEFAULT 'pending',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Create admin_settings table
+CREATE TABLE IF NOT EXISTS admin_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  key text UNIQUE NOT NULL,
+  value text NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Create installation_status table
+CREATE TABLE IF NOT EXISTS installation_status (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  is_installed boolean DEFAULT false,
+  installed_at timestamptz DEFAULT now(),
+  version text DEFAULT '1.0.0'
+);
+
+-- Create admin_users table
+CREATE TABLE IF NOT EXISTS admin_users (
+  id uuid PRIMARY KEY,
+  email text UNIQUE NOT NULL,
+  role text NOT NULL DEFAULT 'admin',
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Enable Row Level Security
+ALTER TABLE whitelist_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE airdrop_claims ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE installation_status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Public can read active whitelist tokens" ON whitelist_tokens FOR SELECT USING (is_active = true);
+CREATE POLICY "Authenticated users can manage whitelist tokens" ON whitelist_tokens FOR ALL TO authenticated USING (true);
+CREATE POLICY "Public can read claims" ON airdrop_claims FOR SELECT USING (true);
+CREATE POLICY "Public can create claims" ON airdrop_claims FOR INSERT WITH CHECK (true);
+CREATE POLICY "Authenticated users can update claims" ON airdrop_claims FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "Public can read settings" ON admin_settings FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can manage settings" ON admin_settings FOR ALL TO authenticated USING (true);
+CREATE POLICY "Public can read installation status" ON installation_status FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can update installation status" ON installation_status FOR ALL TO authenticated USING (true);
+CREATE POLICY "Authenticated users can manage admin users" ON admin_users FOR ALL TO authenticated USING (true);
+
+-- Insert default data
+INSERT INTO whitelist_tokens (address, name, symbol, airdrop_amount, is_active) VALUES
+  ('0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce', 'Shiba Inu', 'SHIB', 1000000, true),
+  ('0x514910771af9ca656af840dff83e8264ecf986ca', 'Chainlink', 'LINK', 50, true),
+  ('0x1f9840a85d5af5bf1d1762f925bdaddc4201f984', 'Uniswap', 'UNI', 100, true),
+  ('0x6b175474e89094c44da98b954eedeac495271d0f', 'Dai Stablecoin', 'DAI', 500, true),
+  ('0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0', 'Polygon', 'MATIC', 200, true),
+  ('0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', 'Wrapped Bitcoin', 'WBTC', 1, true);
+
+INSERT INTO admin_settings (key, value) VALUES
+  ('ethplorer_api_key', 'freekey'),
+  ('platform_name', 'AirdropHub'),
+  ('max_claims_per_address', '1'),
+  ('airdrop_enabled', 'true');
+
+INSERT INTO installation_status (is_installed, version) VALUES (false, '1.0.0');`}
+              </pre>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={checkInstallationStatus}
+                className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/25"
+              >
+                <Database className="w-5 h-5" />
+                Проверить снова
+              </button>
+              <a
+                href="https://supabase.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-gray-700/50 text-gray-300 py-3 px-6 rounded-xl font-semibold hover:bg-gray-600/50 transition-colors border border-gray-600 flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-5 h-5" />
+                Открыть Supabase
+              </a>
+            </div>
+          </div>
+        );
+
       case 'installing':
         return (
           <div className="text-center">
             <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/25">
               <Database className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Установка базы данных</h2>
-            <p className="text-gray-400 mb-6">Создание таблиц базы данных и начальной конфигурации...</p>
+            <h2 className="text-2xl font-bold text-white mb-4">Проверка базы данных</h2>
+            <p className="text-gray-400 mb-6">Проверяем наличие таблиц и данных...</p>
             
             <div className="space-y-3">
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Создание таблиц базы данных</span>
+                <span className="text-gray-300">Проверка таблиц базы данных</span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Настройка политик безопасности</span>
+                <span className="text-gray-300">Проверка политик безопасности</span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="text-gray-300">Вставка данных по умолчанию</span>
+                <span className="text-gray-300">Проверка данных по умолчанию</span>
               </div>
             </div>
           </div>
@@ -279,7 +410,7 @@ const InstallPage: React.FC = () => {
         style={{ backgroundImage: `url("${backgroundPattern}")` }}
       ></div>
       
-      <div className="relative w-full max-w-2xl">
+      <div className="relative w-full max-w-4xl">
         <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700/50 rounded-2xl p-8 shadow-2xl">
           {error && (
             <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4">

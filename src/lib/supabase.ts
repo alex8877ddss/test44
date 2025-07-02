@@ -12,7 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Автоматическая инициализация базы данных при подключении
+// Простая инициализация базы данных при подключении
 let initializationPromise: Promise<boolean> | null = null;
 let isInitialized = false;
 
