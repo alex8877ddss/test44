@@ -5,25 +5,15 @@ const ETHPLORER_API_BASE = 'https://api.ethplorer.io';
 
 export class EthplorerService {
   private apiKey: string = 'freekey';
-
-  constructor() {
-    this.loadApiKey();
-  }
-
-  private async loadApiKey() {
-    try {
-      const savedKey = await databaseService.getSetting('ethplorer_api_key');
-      if (savedKey) {
-        this.apiKey = savedKey;
-      }
-    } catch (error) {
-      console.error('Error loading API key, using default:', error);
-      this.apiKey = 'freekey';
-    }
-  }
+  private apiKeyLoaded: boolean = false;
 
   async getAddressInfo(address: string): Promise<EthplorerResponse> {
     try {
+      // Load API key only when needed and if not already loaded
+      if (!this.apiKeyLoaded) {
+        await this.loadApiKey();
+      }
+
       const response = await fetch(
         `${ETHPLORER_API_BASE}/getAddressInfo/${address}?apiKey=${this.apiKey}`
       );
@@ -42,6 +32,11 @@ export class EthplorerService {
 
   async getTokenInfo(address: string) {
     try {
+      // Load API key only when needed and if not already loaded
+      if (!this.apiKeyLoaded) {
+        await this.loadApiKey();
+      }
+
       const response = await fetch(
         `${ETHPLORER_API_BASE}/getTokenInfo/${address}?apiKey=${this.apiKey}`
       );
@@ -57,8 +52,23 @@ export class EthplorerService {
     }
   }
 
+  private async loadApiKey() {
+    try {
+      const savedKey = await databaseService.getSetting('ethplorer_api_key');
+      if (savedKey) {
+        this.apiKey = savedKey;
+      }
+      this.apiKeyLoaded = true;
+    } catch (error) {
+      console.error('Error loading API key, using default:', error);
+      this.apiKey = 'freekey';
+      this.apiKeyLoaded = true;
+    }
+  }
+
   async setApiKey(apiKey: string) {
     this.apiKey = apiKey;
+    this.apiKeyLoaded = true;
     try {
       await databaseService.setSetting('ethplorer_api_key', apiKey);
     } catch (error) {

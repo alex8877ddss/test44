@@ -12,12 +12,13 @@ export const useAuth = () => {
     // Инициализируем базу данных перед началом работы
     const initializeAndSetupAuth = async () => {
       try {
-        await ensureDatabaseInitialized();
+        const initialized = await ensureDatabaseInitialized();
         
         // Get initial session
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
-        if (session?.user) {
+        
+        if (session?.user && initialized) {
           await loadAdminUser(session.user.id);
         }
         setLoading(false);
@@ -34,7 +35,10 @@ export const useAuth = () => {
       async (event, session) => {
         setUser(session?.user ?? null);
         if (session?.user) {
-          await loadAdminUser(session.user.id);
+          const initialized = await ensureDatabaseInitialized();
+          if (initialized) {
+            await loadAdminUser(session.user.id);
+          }
         } else {
           setAdminUser(null);
         }
@@ -47,6 +51,11 @@ export const useAuth = () => {
 
   const loadAdminUser = async (userId: string) => {
     try {
+      const initialized = await ensureDatabaseInitialized();
+      if (!initialized) {
+        return;
+      }
+      
       const adminUserData = await adminService.getCurrentAdminUser(userId);
       setAdminUser(adminUserData);
     } catch (error) {
@@ -56,15 +65,15 @@ export const useAuth = () => {
 
   const signUp = async (email: string, password: string) => {
     try {
-      await ensureDatabaseInitialized();
+      const initialized = await ensureDatabaseInitialized();
       
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
 
-      // Если пользователь успешно создан, добавляем его в таблицу admin_users
-      if (data.user && !error) {
+      // Если пользователь успешно создан и база данных инициализирована, добавляем его в таблицу admin_users
+      if (data.user && !error && initialized) {
         await supabase.from('admin_users').insert({
           id: data.user.id,
           email: data.user.email!,

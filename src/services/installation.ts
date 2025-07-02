@@ -4,7 +4,11 @@ export class InstallationService {
   async checkInstallationStatus(): Promise<{ isInstalled: boolean; version?: string }> {
     try {
       // First ensure database is initialized
-      await ensureDatabaseInitialized();
+      const initialized = await ensureDatabaseInitialized();
+      
+      if (!initialized) {
+        return { isInstalled: false };
+      }
 
       const { data, error } = await supabase
         .from('installation_status')
@@ -72,7 +76,11 @@ export class InstallationService {
   async completeInstallation(): Promise<boolean> {
     try {
       // Ensure database is initialized
-      await ensureDatabaseInitialized();
+      const initialized = await ensureDatabaseInitialized();
+      
+      if (!initialized) {
+        return false;
+      }
 
       const { error } = await supabase
         .from('installation_status')
@@ -97,7 +105,11 @@ export class InstallationService {
   async resetInstallation(): Promise<boolean> {
     try {
       // Ensure database is initialized
-      await ensureDatabaseInitialized();
+      const initialized = await ensureDatabaseInitialized();
+      
+      if (!initialized) {
+        return false;
+      }
 
       const { error } = await supabase
         .from('installation_status')
