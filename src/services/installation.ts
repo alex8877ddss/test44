@@ -1,16 +1,28 @@
-import { supabase } from '../lib/supabase';
+import { supabase, ensureDatabaseInitialized } from '../lib/supabase';
 
 export class InstallationService {
   async checkInstallationStatus(): Promise<{ isInstalled: boolean; version?: string }> {
     try {
+      // Сначала убеждаемся, что база данных инициализирована
+      await ensureDatabaseInitialized();
+
       const { data, error } = await supabase
         .from('installation_status')
         .select('is_installed, version')
         .single();
 
       if (error) {
-        // If table doesn't exist, installation is needed
-        return { isInstalled: false };
+        // Если таблица не существует, создаем запись по умолчанию
+        const { error: insertError } = await supabase
+          .from('installation_status')
+          .insert({ is_installed: true, version: '1.0.0' });
+
+        if (insertError) {
+          console.error('Error creating installation status:', insertError);
+          return { isInstalled: false };
+        }
+
+        return { isInstalled: true, version: '1.0.0' };
       }
 
       return {
@@ -25,40 +37,33 @@ export class InstallationService {
 
   async performInstallation(): Promise<boolean> {
     try {
-      // The migration file will handle the database setup
-      // We just need to verify the tables exist and have data
+      // Убеждаемся, что база данных инициализирована
+      const initialized = await ensureDatabaseInitialized();
       
-      // Check if whitelist_tokens table exists and has data
-      const { data: whitelistData, error: whitelistError } = await supabase
-        .from('whitelist_tokens')
-        .select('id')
-        .limit(1);
-
-      if (whitelistError) {
-        console.error('Whitelist table check failed:', whitelistError);
+      if (!initialized) {
+        console.error('Failed to initialize database');
         return false;
       }
 
-      // Check if admin_settings table exists and has data
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('admin_settings')
-        .select('id')
-        .limit(1);
+      // Проверяем, что все таблицы существуют и имеют данные
+      const tables = [
+        'whitelist_tokens',
+        'admin_settings', 
+        'airdrop_claims',
+        'admin_users',
+        'installation_status'
+      ];
 
-      if (settingsError) {
-        console.error('Settings table check failed:', settingsError);
-        return false;
-      }
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .select('id')
+          .limit(1);
 
-      // Check if airdrop_claims table exists
-      const { error: claimsError } = await supabase
-        .from('airdrop_claims')
-        .select('id')
-        .limit(1);
-
-      if (claimsError) {
-        console.error('Claims table check failed:', claimsError);
-        return false;
+        if (error) {
+          console.error(`Table ${table} check failed:`, error);
+          return false;
+        }
       }
 
       return true;
@@ -70,13 +75,16 @@ export class InstallationService {
 
   async completeInstallation(): Promise<boolean> {
     try {
+      // Убеждаемся, что база данных инициализирована
+      await ensureDatabaseInitialized();
+
       const { error } = await supabase
         .from('installation_status')
-        .update({
+        .upsert({
           is_installed: true,
           installed_at: new Date().toISOString(),
-        })
-        .eq('is_installed', false);
+          version: '1.0.0'
+        });
 
       if (error) {
         console.error('Error completing installation:', error);
@@ -92,7 +100,9 @@ export class InstallationService {
 
   async resetInstallation(): Promise<boolean> {
     try {
-      // This method can be used to reset installation status for testing
+      // Убеждаемся, что база данных инициализирована
+      await ensureDatabaseInitialized();
+
       const { error } = await supabase
         .from('installation_status')
         .update({

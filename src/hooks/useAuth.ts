@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureDatabaseInitialized } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { adminService, AdminUser } from '../services/admin';
 
@@ -9,14 +9,25 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadAdminUser(session.user.id);
+    // Инициализируем базу данных перед началом работы
+    const initializeAndSetupAuth = async () => {
+      try {
+        await ensureDatabaseInitialized();
+        
+        // Get initial session
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await loadAdminUser(session.user.id);
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initializeAndSetupAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -35,16 +46,38 @@ export const useAuth = () => {
   }, []);
 
   const loadAdminUser = async (userId: string) => {
-    const adminUserData = await adminService.getCurrentAdminUser(userId);
-    setAdminUser(adminUserData);
+    try {
+      const adminUserData = await adminService.getCurrentAdminUser(userId);
+      setAdminUser(adminUserData);
+    } catch (error) {
+      console.error('Error loading admin user:', error);
+    }
   };
 
   const signUp = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    return { data, error };
+    try {
+      await ensureDatabaseInitialized();
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      // Если пользователь успешно создан, добавляем его в таблицу admin_users
+      if (data.user && !error) {
+        await supabase.from('admin_users').insert({
+          id: data.user.id,
+          email: data.user.email!,
+          role: 'admin',
+          is_active: true,
+        });
+      }
+
+      return { data, error };
+    } catch (error) {
+      console.error('Error during sign up:', error);
+      return { data: null, error };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
