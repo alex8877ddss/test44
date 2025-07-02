@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight, ExternalLink } from 'lucide-react';
+import { Database, CheckCircle, AlertCircle, Loader, Shield, Sparkles, ArrowRight, ExternalLink, Copy } from 'lucide-react';
 import { installationService } from '../services/installation';
 import { useAuth } from '../hooks/useAuth';
 
@@ -14,6 +14,7 @@ const InstallPage: React.FC = () => {
     confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
+  const [copiedMigration, setCopiedMigration] = useState<number | null>(null);
 
   const backgroundPattern = "data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E";
 
@@ -33,7 +34,7 @@ const InstallPage: React.FC = () => {
         await performInstallation();
       }
     } catch (err) {
-      setError('Database tables not found. Please run the migration first.');
+      setError('Database tables not found. Please run both migrations first.');
       setInstallationStep('migration-needed');
       console.error('Installation check error:', err);
     }
@@ -47,11 +48,11 @@ const InstallPage: React.FC = () => {
       if (success) {
         setInstallationStep('admin-setup');
       } else {
-        setError('Database tables not found. Please run the migration in Supabase SQL Editor.');
+        setError('Database tables not found. Please run both migrations in Supabase SQL Editor.');
         setInstallationStep('migration-needed');
       }
     } catch (err) {
-      setError('Installation failed. Please run the database migration first.');
+      setError('Installation failed. Please run both database migrations first.');
       setInstallationStep('migration-needed');
       console.error('Installation error:', err);
     }
@@ -91,6 +92,17 @@ const InstallPage: React.FC = () => {
     }
   };
 
+  const copyMigrationPath = async (migrationNumber: number) => {
+    const paths = [
+      'supabase/migrations/20250702094237_shiny_oasis.sql',
+      'supabase/migrations/20250702101526_raspy_marsh.sql'
+    ];
+    
+    await navigator.clipboard.writeText(paths[migrationNumber - 1]);
+    setCopiedMigration(migrationNumber);
+    setTimeout(() => setCopiedMigration(null), 2000);
+  };
+
   const renderStepContent = () => {
     switch (installationStep) {
       case 'checking':
@@ -117,7 +129,7 @@ const InstallPage: React.FC = () => {
             
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6 mb-6">
               <h3 className="text-lg font-semibold text-blue-400 mb-4">Setup Instructions:</h3>
-              <ol className="text-left text-gray-300 space-y-3">
+              <ol className="text-left text-gray-300 space-y-4">
                 <li className="flex items-start gap-3">
                   <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">1</span>
                   <span>Go to your Supabase project dashboard</span>
@@ -128,13 +140,51 @@ const InstallPage: React.FC = () => {
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">3</span>
-                  <span>Copy and run the migration SQL from <code className="bg-gray-700 px-2 py-1 rounded text-sm">supabase/migrations/20250702094237_shiny_oasis.sql</code></span>
+                  <div className="flex-1">
+                    <span className="block mb-2">Run the first migration:</span>
+                    <div className="bg-gray-700/50 rounded-lg p-3 flex items-center justify-between">
+                      <code className="text-sm text-gray-300">supabase/migrations/20250702094237_shiny_oasis.sql</code>
+                      <button
+                        onClick={() => copyMigrationPath(1)}
+                        className="text-purple-400 hover:text-purple-300 transition-colors"
+                      >
+                        {copiedMigration === 1 ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">4</span>
-                  <span>Refresh this page after running the migration</span>
+                  <div className="flex-1">
+                    <span className="block mb-2">Run the second migration:</span>
+                    <div className="bg-gray-700/50 rounded-lg p-3 flex items-center justify-between">
+                      <code className="text-sm text-gray-300">supabase/migrations/20250702101526_raspy_marsh.sql</code>
+                      <button
+                        onClick={() => copyMigrationPath(2)}
+                        className="text-purple-400 hover:text-purple-300 transition-colors"
+                      >
+                        {copiedMigration === 2 ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">5</span>
+                  <span>Refresh this page after running both migrations</span>
                 </li>
               </ol>
+            </div>
+
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-yellow-400 text-sm font-medium mb-1">Important</p>
+                  <p className="text-yellow-300 text-xs">
+                    Both migrations must be run in order. The first creates the main tables, the second creates the admin_users table.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">

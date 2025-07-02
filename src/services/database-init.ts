@@ -14,51 +14,6 @@ export class DatabaseInitService {
     }
   }
 
-  private async createWhitelistTokensTable(): Promise<void> {
-    const { error } = await supabase.rpc('create_whitelist_tokens_table');
-    
-    if (error) {
-      console.error('Error creating whitelist_tokens table:', error);
-      throw error;
-    }
-  }
-
-  private async createAirdropClaimsTable(): Promise<void> {
-    const { error } = await supabase.rpc('create_airdrop_claims_table');
-    
-    if (error) {
-      console.error('Error creating airdrop_claims table:', error);
-      throw error;
-    }
-  }
-
-  private async createAdminSettingsTable(): Promise<void> {
-    const { error } = await supabase.rpc('create_admin_settings_table');
-    
-    if (error) {
-      console.error('Error creating admin_settings table:', error);
-      throw error;
-    }
-  }
-
-  private async createAdminUsersTable(): Promise<void> {
-    const { error } = await supabase.rpc('create_admin_users_table');
-    
-    if (error) {
-      console.error('Error creating admin_users table:', error);
-      throw error;
-    }
-  }
-
-  private async createInstallationStatusTable(): Promise<void> {
-    const { error } = await supabase.rpc('create_installation_status_table');
-    
-    if (error) {
-      console.error('Error creating installation_status table:', error);
-      throw error;
-    }
-  }
-
   private async insertDefaultData(): Promise<void> {
     try {
       // Check and insert default whitelist tokens
@@ -110,28 +65,20 @@ export class DatabaseInitService {
     }
   }
 
-  async initializeDatabase(): Promise<boolean> {
-    try {
-      console.log('Database initialization skipped - tables should be created via Supabase migrations');
-      
-      // Try to insert default data if tables exist
-      await this.insertDefaultData();
-      
-      console.log('Default data insertion completed');
-      return true;
-    } catch (error) {
-      console.error('Error during database initialization:', error);
-      return false;
-    }
-  }
-
   async checkAndInitialize(): Promise<boolean> {
     try {
-      // Check if basic tables exist
-      const tables = ['whitelist_tokens', 'airdrop_claims', 'admin_settings', 'installation_status'];
+      // Check if all required tables exist
+      const requiredTables = [
+        'whitelist_tokens', 
+        'airdrop_claims', 
+        'admin_settings', 
+        'admin_users',
+        'installation_status'
+      ];
+      
       const missingTables = [];
 
-      for (const table of tables) {
+      for (const table of requiredTables) {
         const exists = await this.tableExists(table);
         if (!exists) {
           missingTables.push(table);
@@ -140,14 +87,16 @@ export class DatabaseInitService {
 
       if (missingTables.length > 0) {
         console.log(`Missing tables: ${missingTables.join(', ')}`);
-        console.log('Please run the database migration in Supabase SQL Editor');
+        console.log('Please run both database migrations in Supabase SQL Editor:');
+        console.log('1. supabase/migrations/20250702094237_shiny_oasis.sql');
+        console.log('2. supabase/migrations/20250702101526_raspy_marsh.sql');
         return false;
       }
 
       // If all tables exist, try to insert default data
       await this.insertDefaultData();
       
-      console.log('All tables exist and default data is ready');
+      console.log('All required tables exist and default data is ready');
       return true;
     } catch (error) {
       console.error('Error checking tables:', error);
